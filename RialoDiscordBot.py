@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-import RialoDiscordBot
+import discord as RialoDiscordBot
 from discord.ext import commands
 
 # Load environment variables
@@ -9,16 +9,26 @@ load_dotenv()
 # Get the token from environment variables
 TOKEN = os.getenv('DISCORD_TOKEN')
 
+# Check if token is available
+if not TOKEN:
+    print("Error: DISCORD_TOKEN environment variable is not set!")
+    print("Please create a .env file in the project root with your Discord bot token:")
+    print("DISCORD_TOKEN=your_bot_token_here")
+    exit(1)
+
 intents = RialoDiscordBot.Intents.default()
-intents.members = True
-intents.guilds = True
+# Note: members and guilds intents are privileged and need to be enabled in Discord Developer Portal
+# For now, we'll disable them to make the bot work immediately
+intents.members = True  
+intents.guilds = True   
+intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 banned_keywords = ["mee6", "MEE6", "mee6.xyz", "mee6.gg", "mee6.com", "mee6.net", "mee6.org", "mee6.io", "mee6.club", "mee6.fun", "mee6.top", "mee6.xyz", "mee6.gg", "mee6.com", "mee6.net", "mee6.org", "mee6.io", "mee6.club", "mee6.fun", "mee6.top"]
 
 # Channel ID to send logs (replace this with your actual channel ID)
-LOG_CHANNEL_ID = []  # ← replace this with your mod-log channel ID
+LOG_CHANNEL_ID = None  # ← replace this with your mod-log channel ID
 
 @bot.event
 async def on_ready():
@@ -27,36 +37,48 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member):
-    username = member.name.lower()
-    nickname = member.display_name.lower()
-    if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
-        try:
-            await member.ban(reason="Banned for blacklisted username or nickname")
-            print(f"Banned {member.name} (nickname: {member.display_name}) for blacklisted username or nickname")
-            log_channel = bot.get_channel(LOG_CHANNEL_ID)
-            if log_channel:
-                await log_channel.send(f"Banned {member.name} (nickname: {member.display_name}) for blacklisted username or nickname")
-        except RialoDiscordBot.Forbidden:
-            print(f"Failed to ban {member.name} due to insufficient permissions")
-        except RialoDiscordBot.HTTPException:
-            print(f"Failed to ban {member.name} due to an HTTP error")
+    # This event requires the "Server Members Intent" to be enabled in Discord Developer Portal
+    # If you get errors, enable the intent or comment out this event handler
+    try:
+        username = member.name.lower()
+        nickname = member.display_name.lower()
+        if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
+            try:
+                await member.ban(reason="Banned for blacklisted username or nickname")
+                print(f"Banned {member.name} (nickname: {member.display_name}) for blacklisted username or nickname")
+                log_channel = bot.get_channel(LOG_CHANNEL_ID)
+                if log_channel:
+                    await log_channel.send(f"Banned {member.name} (nickname: {member.display_name}) for blacklisted username or nickname")
+            except RialoDiscordBot.Forbidden:
+                print(f"Failed to ban {member.name} due to insufficient permissions")
+            except RialoDiscordBot.HTTPException:
+                print(f"Failed to ban {member.name} due to an HTTP error")
+    except Exception as e:
+        print(f"Error in on_member_join: {e}")
+        print("Note: This event requires 'Server Members Intent' to be enabled in Discord Developer Portal")
 
 
 @bot.event
 async def on_member_update(before, after):
-    username = after.name.lower()
-    nickname = after.display_name.lower()
-    if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
-        try:
-            await after.ban(reason="Banned for blacklisted username or nickname")
-            print(f"Banned {after.name} (nickname: {after.display_name}) for blacklisted username or nickname")
-            log_channel = bot.get_channel(LOG_CHANNEL_ID)
-            if log_channel:
-                await log_channel.send(f"Banned {after.name} (nickname: {after.display_name}) for blacklisted username or nickname")
-        except RialoDiscordBot.Forbidden:
-            print(f"Failed to ban {after.name} due to insufficient permissions")
-        except RialoDiscordBot.HTTPException:
-            print(f"Failed to ban {after.name} due to an HTTP error")
+    # This event requires the "Server Members Intent" to be enabled in Discord Developer Portal
+    # If you get errors, enable the intent or comment out this event handler
+    try:
+        username = after.name.lower()
+        nickname = after.display_name.lower()
+        if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
+            try:
+                await after.ban(reason="Banned for blacklisted username or nickname")
+                print(f"Banned {after.name} (nickname: {after.display_name}) for blacklisted username or nickname")
+                log_channel = bot.get_channel(LOG_CHANNEL_ID)
+                if log_channel:
+                    await log_channel.send(f"Banned {after.name} (nickname: {after.display_name}) for blacklisted username or nickname")
+            except RialoDiscordBot.Forbidden:
+                print(f"Failed to ban {after.name} due to insufficient permissions")
+            except RialoDiscordBot.HTTPException:
+                print(f"Failed to ban {after.name} due to an HTTP error")
+    except Exception as e:
+        print(f"Error in on_member_update: {e}")
+        print("Note: This event requires 'Server Members Intent' to be enabled in Discord Developer Portal")
 
 
 #Admin Commands:
@@ -87,7 +109,7 @@ async def removeword(interaction: RialoDiscordBot.Interaction, word: str):
 
 
 # Slash Commands: /listwords
-bot.tree.command(name="listwords", description="List all banned words")
+@bot.tree.command(name="listwords", description="List all banned words")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def listwords(interaction: RialoDiscordBot.Interaction):
     if not banned_keywords:
@@ -97,7 +119,7 @@ async def listwords(interaction: RialoDiscordBot.Interaction):
 
 # Slash Commands: /clearbannedwords
 
-bot.tree.command(name="clearbannedwords", description="Clear all banned words")
+@bot.tree.command(name="clearbannedwords", description="Clear all banned words")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def clearbannedwords(interaction: RialoDiscordBot.Interaction):
     
@@ -108,7 +130,7 @@ async def clearbannedwords(interaction: RialoDiscordBot.Interaction):
 
 # Slash Commands: /banuser
 
-bot.tree.command(name="banuser", description="Ban a user")
+@bot.tree.command(name="banuser", description="Ban a user")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def banuser(interaction: RialoDiscordBot.Interaction, user: RialoDiscordBot.Member, reason: str = "No reason provided"):
     await user.ban(reason=reason)
@@ -116,7 +138,7 @@ async def banuser(interaction: RialoDiscordBot.Interaction, user: RialoDiscordBo
 
 # Slash Commands: /unbanuser
 
-bot.tree.command(name="unbanuser", description="Unban a user")
+@bot.tree.command(name="unbanuser", description="Unban a user")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def unbanuser(interaction: RialoDiscordBot.Interaction, user: RialoDiscordBot.Member):
     await user.unban()
@@ -124,7 +146,7 @@ async def unbanuser(interaction: RialoDiscordBot.Interaction, user: RialoDiscord
 
 #Slash Commands: /kickuser
 
-bot.tree.command(name="kickuser", description="Kick a user")
+@bot.tree.command(name="kickuser", description="Kick a user")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def kickuser(interaction: RialoDiscordBot.Interaction, user: RialoDiscordBot.Member, reason: str = "No reason provided"):
     await user.kick(reason=reason)
@@ -132,10 +154,11 @@ async def kickuser(interaction: RialoDiscordBot.Interaction, user: RialoDiscordB
 
 #Slash Commands: /addlogchannelid
 
-bot.tree.command(name="addlogchannelid", description="Add a log channel ID")
+@bot.tree.command(name="addlogchannelid", description="Add a log channel ID")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def addlogchannelid(interaction: RialoDiscordBot.Interaction, channel: RialoDiscordBot.TextChannel):
-    LOG_CHANNEL_ID.append(channel.id)
+    global LOG_CHANNEL_ID
+    LOG_CHANNEL_ID = channel.id
     await interaction.response.send_message(f"Added {channel.name} as the log channel")
 
 
