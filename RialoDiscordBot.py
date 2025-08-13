@@ -85,7 +85,7 @@ async def on_member_update(before, after):
 
 # Slash Commands: /addword
 
-bot.tree.command(name="addword", description="Add a word to the banned list")
+@bot.tree.command(name="addword", description="Add a word to the banned list")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def addword(interaction: RialoDiscordBot.Interaction, word: str):
     word = word.lower()
@@ -97,7 +97,7 @@ async def addword(interaction: RialoDiscordBot.Interaction, word: str):
 
 # Slash Commands: /removeword
 
-bot.tree.command(name="removeword", description="Remove a word from the banned list")
+@bot.tree.command(name="removeword", description="Remove a word from the banned list")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
 async def removeword(interaction: RialoDiscordBot.Interaction, word: str):
     word = word.lower()
