@@ -1,9 +1,10 @@
 import os
 import io
+import re
 from dotenv import load_dotenv
 import discord as RialoDiscordBot
 from discord.ext import commands
-
+from homoglyphs import Homoglyphs
 # Load environment variables
 load_dotenv()
 
@@ -24,7 +25,31 @@ intents.members = True
 intents.guilds = True   
 intents.message_content = True
 
+
+
 bot = commands.Bot(command_prefix='!', intents=intents)
+
+hg = Homoglyphs(languages={"en, ru, el"}, strategy=Homoglyphs.STRATEGY_REMOVE)
+
+URL_PATTERN = re.compile(r"(https?://[^\s]+|www\.[^\s]+)")
+
+
+#Normalize text for detecting a homoglyps
+async def normalise_text(text: str, member=None) -> str:
+   
+    normalized = hg.to_ascii(text)
+    if normalized.casefold() != text.casefold():
+        if member is not None:
+            await send_log(
+                f"⚠️ User with possible homoglyphs in username detected: "
+                f"{member.mention} ({member.id})\n"
+                f"Original: `{text}` → Normalized: `{normalized}`",
+                guild_id=member.guild.id,
+            )
+        else:
+            print(f"Homoglyph detected in text: {text} → {normalized}")
+
+    return normalized.casefold()
 
 banned_keywords = ["mee6", "MEE6", "mee6.xyz", "mee6.gg", "mee6.com", "mee6.net", "mee6.org", "mee6.io", "mee6.club", "mee6.fun", "mee6.top", "mee6.xyz", "mee6.gg", "mee6.com", "mee6.net", "mee6.org", "mee6.io", "mee6.club", "mee6.fun", "mee6.top"]
 
@@ -87,8 +112,9 @@ async def on_member_join(member):
     # This event requires the "Server Members Intent" to be enabled in Discord Developer Portal
     # If you get errors, enable the intent or comment out this event handler
     try:
-        username = member.name.lower()
-        nickname = member.display_name.lower()
+        username = normalise_text(member.name)
+        nickname = normalise_text(member.dislay_name)
+
         if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
             try:
                 await member.ban(reason="Banned for blacklisted username or nickname")
@@ -106,19 +132,18 @@ async def on_member_join(member):
         print("Note: This event requires 'Server Members Intent' to be enabled in Discord Developer Portal")
 
 
-@bot.event
 async def on_member_update(before, after):
-    # This event requires the "Server Members Intent" to be enabled in Discord Developer Portal
-    # If you get errors, enable the intent or comment out this event handler
     try:
-        username = after.name.lower()
-        nickname = after.display_name.lower()
+        username = await normalise_text(after.name, after)
+        nickname = await normalise_text(after.display_name, after)
+
         if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
             try:
                 await after.ban(reason="Banned for blacklisted username or nickname")
-                print(f"Banned {after.name} (nickname: {after.display_name}) for blacklisted username or nickname")
+                print(f"Banned {after.name} (nickname: {after.display_name})")
                 await send_log(
-                    f"Auto-ban on name change: {after.mention} ({after.id}) for blacklisted username or nickname. Username: '{after.name}', Nickname: '{after.display_name}'.",
+                    f"🚫 Auto-ban on name change: {after.mention} ({after.id})\n"
+                    f"Username: '{after.name}', Nickname: '{after.display_name}'",
                     guild_id=after.guild.id,
                 )
             except RialoDiscordBot.Forbidden:
@@ -127,8 +152,41 @@ async def on_member_update(before, after):
                 print(f"Failed to ban {after.name} due to an HTTP error")
     except Exception as e:
         print(f"Error in on_member_update: {e}")
-        print("Note: This event requires 'Server Members Intent' to be enabled in Discord Developer Portal")
 
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    # Check embeds
+    for embed in message.embeds:
+        if embed.url:  # The main URL of the embed
+            try:
+                await message.delete()
+                await send_log(f"Deleted embed with URL from {message.author.mention}: {embed.url}", guild_id=message.guild.id)
+            except RialoDiscordBot.Forbidden:
+                print(f"Cannot delete embed message from {message.author} due to permissions.")
+            except Exception as e:
+                print(f"Failed to delete embed message: {e}")
+
+        # Also check fields with links
+        for field in embed.fields:
+            if re.search(r"(https?://[^\s]+|www\.[^\s]+)", field.value):
+                try:
+                    await message.delete()
+                    await send_log(f"Deleted embed field with link from {message.author.mention}", guild_id=message.guild.id)
+                except:
+                    pass
+
+    # Also check plain text for regular URLs
+    if URL_PATTERN.search(message.content):
+        try:
+            await message.delete()
+            await send_log(f"Deleted message from {message.author.mention} containing a link.", guild_id=message.guild.id)
+        except:
+            pass
+
+    await bot.process_commands(message)
 
 #Admin Commands:
 
