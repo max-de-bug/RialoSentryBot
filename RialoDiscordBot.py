@@ -4,7 +4,7 @@ import re
 from dotenv import load_dotenv
 import discord as RialoDiscordBot
 from discord.ext import commands
-from homoglyphs import Homoglyphs
+from homoglyphs import Homoglyphs, Strategy
 # Load environment variables
 load_dotenv()
 
@@ -29,7 +29,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-hg = Homoglyphs(languages={"en, ru, el"}, strategy=Homoglyphs.STRATEGY_REMOVE)
+hg = Homoglyphs(languages=["en", "ru", "el"], strategy=Strategy.REMOVE)
 
 URL_PATTERN = re.compile(r"(https?://[^\s]+|www\.[^\s]+)")
 
