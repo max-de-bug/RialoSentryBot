@@ -38,6 +38,11 @@ URL_PATTERN = re.compile(r"(https?://[^\s]+|www\.[^\s]+)")
 async def normalise_text(text: str, member=None) -> str:
    
     normalized = hg.to_ascii(text)
+    # Convert list to string if needed
+    if isinstance(normalized, list):
+        normalized = ''.join(normalized) if normalized else text
+    
+
     if normalized.casefold() != text.casefold():
         if member is not None:
             await send_log(
