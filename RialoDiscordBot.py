@@ -112,8 +112,8 @@ async def on_member_join(member):
     # This event requires the "Server Members Intent" to be enabled in Discord Developer Portal
     # If you get errors, enable the intent or comment out this event handler
     try:
-        username = normalise_text(member.name)
-        nickname = normalise_text(member.display_name)
+        username = await normalise_text(member.name)
+        nickname = await normalise_text(member.display_name)
 
         if any(keyword in username for keyword in banned_keywords) or any(keyword in nickname for keyword in banned_keywords):
             try:
