@@ -137,6 +137,7 @@ async def on_member_join(member):
         print("Note: This event requires 'Server Members Intent' to be enabled in Discord Developer Portal")
 
 
+@bot.event
 async def on_member_update(before, after):
     try:
         username = await normalise_text(after.name, after)
