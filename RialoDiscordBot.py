@@ -37,6 +37,10 @@ URL_PATTERN = re.compile(r"(https?://[^\s]+|www\.[^\s]+)")
 #Normalize text for detecting a homoglyps
 async def normalise_text(text: str, member=None) -> str:
    
+    # If homoglyph detection is disabled, just return the text as-is
+    if not HOMOGLYPH_DETECTION_ENABLED:
+        return text.casefold()
+   
     normalized = hg.to_ascii(text)
     # Convert list to string if needed
     if isinstance(normalized, list):
@@ -57,6 +61,10 @@ async def normalise_text(text: str, member=None) -> str:
     return normalized.casefold()
 
 banned_keywords = ["mee6", "MEE6", "mee6.xyz", "mee6.gg", "mee6.com", "mee6.net", "mee6.org", "mee6.io", "mee6.club", "mee6.fun", "mee6.top", "mee6.xyz", "mee6.gg", "mee6.com", "mee6.net", "mee6.org", "mee6.io", "mee6.club", "mee6.fun", "mee6.top"]
+
+# Feature toggles
+LINK_FILTER_ENABLED = True
+HOMOGLYPH_DETECTION_ENABLED = True
 
 # Channel ID to send logs (legacy, single-channel). Prefer per-guild map below.
 LOG_CHANNEL_ID = None  # Backward compatibility fallback
@@ -164,33 +172,35 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Check embeds
-    for embed in message.embeds:
-        if embed.url:  # The main URL of the embed
-            try:
-                await message.delete()
-                await send_log(f"Deleted embed with URL from {message.author.mention}: {embed.url}", guild_id=message.guild.id)
-            except RialoDiscordBot.Forbidden:
-                print(f"Cannot delete embed message from {message.author} due to permissions.")
-            except Exception as e:
-                print(f"Failed to delete embed message: {e}")
-
-        # Also check fields with links
-        for field in embed.fields:
-            if re.search(r"(https?://[^\s]+|www\.[^\s]+)", field.value):
+    # Only process link filtering if enabled
+    if LINK_FILTER_ENABLED:
+        # Check embeds
+        for embed in message.embeds:
+            if embed.url:  # The main URL of the embed
                 try:
                     await message.delete()
-                    await send_log(f"Deleted embed field with link from {message.author.mention}", guild_id=message.guild.id)
-                except:
-                    pass
+                    await send_log(f"Deleted embed with URL from {message.author.mention}: {embed.url}", guild_id=message.guild.id)
+                except RialoDiscordBot.Forbidden:
+                    print(f"Cannot delete embed message from {message.author} due to permissions.")
+                except Exception as e:
+                    print(f"Failed to delete embed message: {e}")
 
-    # Also check plain text for regular URLs
-    if URL_PATTERN.search(message.content):
-        try:
-            await message.delete()
-            await send_log(f"Deleted message from {message.author.mention} containing a link.", guild_id=message.guild.id)
-        except:
-            pass
+            # Also check fields with links
+            for field in embed.fields:
+                if re.search(r"(https?://[^\s]+|www\.[^\s]+)", field.value):
+                    try:
+                        await message.delete()
+                        await send_log(f"Deleted embed field with link from {message.author.mention}", guild_id=message.guild.id)
+                    except:
+                        pass
+
+        # Also check plain text for regular URLs
+        if URL_PATTERN.search(message.content):
+            try:
+                await message.delete()
+                await send_log(f"Deleted message from {message.author.mention} containing a link.", guild_id=message.guild.id)
+            except:
+                pass
 
     await bot.process_commands(message)
 
@@ -380,6 +390,8 @@ async def unbanuserid(interaction: RialoDiscordBot.Interaction, user_id: str):
     except RialoDiscordBot.HTTPException as e:
         await interaction.followup.send(f"Failed to unban user: {e}", ephemeral=True)
 
+
+
 #Slash Commands: /kickuser
 
 @bot.tree.command(name="kickuser", description="Kick a user")
@@ -415,6 +427,75 @@ async def addlogchannelid(interaction: RialoDiscordBot.Interaction, channel: Ria
         pass
 
 
+# Feature Toggle Commands
+
+@bot.tree.command(name="linkfilter", description="Enable or disable link filtering")
+@RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
+async def linkfilter(interaction: RialoDiscordBot.Interaction, status: str):
+    global LINK_FILTER_ENABLED
+    
+    status_lower = status.lower()
+    if status_lower in ["on", "true", "yes", "1", "enable"]:
+        LINK_FILTER_ENABLED = True
+        response = "✅ Link filtering is now enabled"
+    elif status_lower in ["off", "false", "no", "0", "disable"]:
+        LINK_FILTER_ENABLED = False
+        response = "❌ Link filtering is now disabled"
+    else:
+        await interaction.response.send_message("❌ Invalid status. Use 'on' or 'off'", ephemeral=True)
+        return
+    
+    await interaction.response.send_message(response, ephemeral=True)
+    
+    try:
+        if interaction.guild:
+            status_text = "enabled" if LINK_FILTER_ENABLED else "disabled"
+            await send_log(f"Link filtering {status_text} by {interaction.user.mention}", guild_id=interaction.guild.id)
+    except Exception:
+        pass
+
+@bot.tree.command(name="homoglyph", description="Enable or disable homoglyph detection")
+@RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
+async def homoglyph(interaction: RialoDiscordBot.Interaction, status: str):
+    global HOMOGLYPH_DETECTION_ENABLED
+    
+    status_lower = status.lower()
+    if status_lower in ["on", "true", "yes", "1", "enable"]:
+        HOMOGLYPH_DETECTION_ENABLED = True
+        response = "✅ Homoglyph detection is now enabled"
+    elif status_lower in ["off", "false", "no", "0", "disable"]:
+        HOMOGLYPH_DETECTION_ENABLED = False
+        response = "❌ Homoglyph detection is now disabled"
+    else:
+        await interaction.response.send_message("❌ Invalid status. Use 'on' or 'off'", ephemeral=True)
+        return
+    
+    await interaction.response.send_message(response, ephemeral=True)
+    
+    try:
+        if interaction.guild:
+            status_text = "enabled" if HOMOGLYPH_DETECTION_ENABLED else "disabled"
+            await send_log(f"Homoglyph detection {status_text} by {interaction.user.mention}", guild_id=interaction.guild.id)
+    except Exception:
+        pass
+
+@bot.tree.command(name="featurestatus", description="Show current status of bot features")
+@RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
+async def featurestatus(interaction: RialoDiscordBot.Interaction):
+    link_status = "✅ Enabled" if LINK_FILTER_ENABLED else "❌ Disabled"
+    homoglyph_status = "✅ Enabled" if HOMOGLYPH_DETECTION_ENABLED else "❌ Disabled"
+    
+    embed = RialoDiscordBot.Embed(
+        title="🤖 Bot Feature Status",
+        color=0x00ff00,
+        description="Current status of bot features"
+    )
+    
+    embed.add_field(name="🔗 Link Filtering", value=link_status, inline=True)
+    embed.add_field(name="🔍 Homoglyph Detection", value=homoglyph_status, inline=True)
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 # Utility: test log command
 @bot.tree.command(name="testlog", description="Send a test message to the configured log channel for this server")
 @RialoDiscordBot.app_commands.checks.has_permissions(administrator=True)
@@ -425,5 +506,7 @@ async def testlog(interaction: RialoDiscordBot.Interaction):
     await interaction.response.send_message("Attempting to send a test log...", ephemeral=True)
     await send_log("This is a test log message.", guild_id=interaction.guild.id)
 
+
+#Slash Commands: /stats
 
 bot.run(TOKEN)
